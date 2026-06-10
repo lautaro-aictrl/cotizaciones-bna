@@ -1,6 +1,16 @@
 import base64
+import glob
+import os
 
-with open("tc-monitor-bna.html", "rb") as f:
+# Buscar el archivo HTML automáticamente (sin importar el nombre exacto)
+html_files = glob.glob("*.html")
+if not html_files:
+    raise FileNotFoundError("No se encontró ningún archivo .html en el repositorio")
+
+html_file = html_files[0]
+print(f"HTML encontrado: {html_file}")
+
+with open(html_file, "rb") as f:
     data = f.read()
 
 b64 = base64.b64encode(data).decode()
