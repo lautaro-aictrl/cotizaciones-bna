@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#080b10"/>
+<title>TC Monitor · BNA</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:#080b10;color:#e2e8f0;font-family:-apple-system,'SF Pro Display','Helvetica Neue',Arial,sans-serif;overscroll-behavior:none}
+  ::-webkit-scrollbar{display:none}
+
+  /* ── Layout ── */
+  #app{display:flex;flex-direction:column;height:100svh;max-width:430px;margin:0 auto;position:relative;overflow:hidden}
+  #topbar{background:#0d1117;padding:14px 20px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e2533;flex-shrink:0;position:relative;z-index:10}
+  #topbar h1{font-size:18px;font-weight:800;color:#f1f5f9;letter-spacing:-.5px}
+  #topbar .sub{font-size:11px;color:#475569;margin-top:1px}
+  #status{display:flex;align-items:center;gap:8px}
+  #dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;transition:background .3s,box-shadow .3s}
+  #dot.loading{background:#f59e0b;box-shadow:0 0 8px #f59e0b;animation:pulse .8s infinite}
+  #age{font-size:11px;color:#475569}
+
+  /* ── Moneda tabs (horizontal scroll) ── */
+  #moneda-tabs{flex-shrink:0;display:flex;gap:8px;overflow-x:auto;padding:12px 16px;background:#0d1117;border-bottom:1px solid #1e2533;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #moneda-tabs::-webkit-scrollbar{display:none}
+  .mtab{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:20px;border:1.5px solid #1e2533;background:transparent;color:#64748b;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;scroll-snap-align:start;font-family:inherit}
+  .mtab.active{background:#3b82f618;border-color:#3b82f6;color:#3b82f6}
+  .mtab .emoji{font-size:16px}
+  .mtab .change{font-size:10px;font-weight:800;margin-left:2px}
+  .mtab .change.up{color:#4ade80}
+  .mtab .change.dn{color:#f87171}
+
+  /* ── Bottom nav ── */
+  #botnav{position:absolute;bottom:0;left:0;right:0;background:#0d111799;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid #1e2533;display:flex;padding:8px 0 calc(8px + env(safe-area-inset-bottom));z-index:100;flex-shrink:0}
+  .bnbtn{flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;font-family:inherit;opacity:.4;transition:opacity .2s,transform .1s}
+  .bnbtn.active{opacity:1;transform:scale(1.05)}
+  .bnbtn .bnico{font-size:22px;line-height:1}
+  .bnbtn .bnlbl{font-size:10px;font-weight:700;letter-spacing:.5px;color:#64748b;text-transform:uppercase}
+  .bnbtn.active .bnlbl{color:#3b82f6}
+
+  /* ── Content ── */
+  #content{flex:1;overflow-y:auto;padding-bottom:80px;-webkit-overflow-scrolling:touch}
+  .view{display:none;padding:16px 16px 0}
+  .view.active{display:block}
+
+  /* ── Hero card ── */
+  #hero{background:linear-gradient(135deg,#1a1f2e 0%,#0f1319 100%);border:1.5px solid #1e2533;border-radius:24px;padding:24px 20px 20px;margin-bottom:12px;cursor:pointer;transition:border-color .5s,box-shadow .5s}
+  #hero.flash-up{border-color:#3b82f688;box-shadow:0 0 32px #3b82f633}
+  #hero.flash-dn{border-color:#ef444488;box-shadow:0 0 32px #ef444433}
+  #hero-top{display:flex;justify-content:space-between;align-items:flex-start}
+  #hero-label{font-size:11px;color:#64748b;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  #hero-price{font-size:42px;font-weight:800;color:#f1f5f9;letter-spacing:-1px;line-height:1}
+  #hero-chip{display:inline-flex;align-items:center;gap:4px;margin-top:8px;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;display:none}
+  #hero-chip.up{background:#22c55e18;color:#4ade80;border:1px solid #22c55e33;display:inline-flex}
+  #hero-chip.dn{background:#ef444418;color:#f87171;border:1px solid #ef444433;display:inline-flex}
+  #hero-icon{width:48px;height:48px;border-radius:14px;background:#3b82f618;display:flex;align-items:center;justify-content:center;font-size:22px}
+  #hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+  .hg-cell{background:#ffffff08;border-radius:12px;padding:10px 14px}
+  .hg-label{font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase}
+  .hg-val{font-size:18px;font-weight:700;color:#e2e8f0;margin-top:4px}
+  #hero-spark{margin-top:14px}
+
+  /* ── Mini grid ── */
+  #mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .mini-card{background:#0f1319;border:1.5px solid #1e2533;border-radius:18px;padding:16px 14px;cursor:pointer;transition:border-color .5s,box-shadow .5s}
+  .mini-card.flash-up{border-color:#22c55e66;box-shadow:0 0 20px #22c55e22}
+  .mini-card.flash-dn{border-color:#ef444466;box-shadow:0 0 20px #ef444422}
+  .mc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .mc-emoji{font-size:20px}
+  .mc-change{font-size:11px;font-weight:700}
+  .mc-change.up{color:#4ade80}
+  .mc-change.dn{color:#f87171}
+  .mc-label{font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px}
+  .mc-price{font-size:22px;font-weight:800;color:#f1f5f9}
+  .mc-compra{font-size:11px;color:#475569;margin-top:4px}
+
+  /* ── Alerts view ── */
+  #alerts-view{padding:20px 16px}
+  .av-title{font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .av-badge{background:#3b82f6;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700}
+  #alerts-empty{text-align:center;padding:60px 0;color:#475569}
+  #alerts-empty .eye{font-size:48px;margin-bottom:12px}
+  #alerts-list{display:flex;flex-direction:column;gap:10px}
+  .alert-item{background:#0f1319;border-radius:16px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start;animation:fadeIn .3s ease}
+  .alert-item.up{border:1px solid #22c55e33}
+  .alert-item.dn{border:1px solid #ef444433}
+  .ai-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .alert-item.up .ai-icon{background:#22c55e18}
+  .alert-item.dn .ai-icon{background:#ef444418}
+  .ai-dir{font-size:13px;font-weight:700}
+  .alert-item.up .ai-dir{color:#4ade80}
+  .alert-item.dn .ai-dir{color:#f87171}
+  .ai-text{font-size:12px;color:#94a3b8;margin-top:3px}
+  .ai-time{font-size:11px;color:#475569;margin-top:4px}
+
+  /* ── Settings view ── */
+  #settings-view{padding:20px 16px}
+  .sv-title{font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:20px}
+  .sv-section{font-size:11px;color:#64748b;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+  .interval-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:24px}
+  .iv-btn{padding:10px 4px;border-radius:12px;border:1px solid #1e2533;cursor:pointer;background:#0f1319;color:#64748b;font-size:11px;font-weight:700;font-family:inherit;transition:all .2s}
+  .iv-btn.active{background:#3b82f6;color:#fff;border-color:transparent}
+  .notif-row{background:#0f1319;border:1px solid #1e2533;border-radius:16px;padding:16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;gap:12px}
+  .nr-label{font-size:14px;font-weight:600;color:#e2e8f0}
+  .nr-sub{font-size:12px;color:#475569;margin-top:2px}
+  #notif-btn{padding:10px 16px;border-radius:12px;border:none;background:#3b82f6;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0}
+  .stat-box{background:#0f1319;border:1px solid #1e2533;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+  .stat-row{display:flex;justify-content:space-between}
+  .stat-key{font-size:13px;color:#64748b}
+  .stat-val{font-size:13px;font-weight:600;color:#e2e8f0}
+  #refresh-btn{width:100%;padding:15px;border-radius:16px;border:none;background:#3b82f6;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s}
+  #refresh-btn:disabled{background:#1e2533;color:#475569;cursor:not-allowed}
+  #refresh-icon{font-size:18px;display:inline-block}
+  #refresh-icon.spin{animation:spin 1s linear infinite}
+
+  /* ── Detail modal ── */
+  #modal-bg{display:none;position:fixed;inset:0;background:#000a;z-index:200;align-items:flex-end}
+  #modal-bg.open{display:flex;animation:fadeIn .2s}
+  #modal{background:#0d1117;border-radius:24px 24px 0 0;border:1px solid #1e2533;padding:20px 20px 40px;width:100%;max-width:430px;margin:0 auto;animation:slideUp .3s ease}
+  #modal-handle{width:40px;height:4px;background:#1e2533;border-radius:4px;margin:0 auto 20px}
+  #modal-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  #modal-icon-wrap{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+  #modal-name{font-size:18px;font-weight:800;color:#f1f5f9}
+  #modal-sub{font-size:12px;color:#475569}
+  #modal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+  .mg-cell{background:#0f1319;border-radius:14px;padding:14px 12px;border:1px solid #1e2533}
+  .mg-label{font-size:10px;color:#64748b;letter-spacing:1px;text-transform:uppercase}
+  .mg-val{font-size:17px;font-weight:800;color:#f1f5f9;margin-top:6px}
+  #modal-diff{border-radius:14px;padding:12px 16px;margin-bottom:16px;display:none;align-items:center;gap:10px}
+  #modal-diff.up{background:#22c55e12;border:1px solid #22c55e33;display:flex}
+  #modal-diff.dn{background:#ef444412;border:1px solid #ef444433;display:flex}
+  #modal-diff-icon{font-size:22px}
+  #modal-diff-text{font-size:14px;font-weight:700}
+  #modal-diff.up #modal-diff-text{color:#4ade80}
+  #modal-diff.dn #modal-diff-text{color:#f87171}
+  #modal-hist{background:#0f1319;border-radius:14px;padding:14px;border:1px solid #1e2533}
+  .hist-title{font-size:10px;color:#64748b;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+  .hist-minmax{display:flex;justify-content:space-between;margin-top:6px}
+  .hist-minmax span{font-size:10px;color:#475569}
+
+  .source-update-box{background:#0f1319;border:1px solid #1e2533;border-radius:16px;padding:16px;margin-bottom:4px}
+  .su-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .su-icon{font-size:24px;flex-shrink:0}
+  .su-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px}
+  .su-val{font-size:15px;font-weight:700;color:#f1f5f9;margin-top:3px}
+  .su-chip{margin-left:auto;flex-shrink:0;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+  .su-chip.fresh{background:#22c55e18;color:#4ade80;border:1px solid #22c55e33}
+  .su-chip.stale{background:#f59e0b18;color:#fbbf24;border:1px solid #f59e0b33}
+  .su-chip.old{background:#ef444418;color:#f87171;border:1px solid #ef444433}
+  .su-note{font-size:11px;color:#475569;line-height:1.5;border-top:1px solid #1e2533;padding-top:10px}
+  .su-note strong{color:#64748b}
+
+  .mtab .badge{font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px;background:#06b6d420;color:#06b6d4;border:1px solid #06b6d440;margin-left:2px;text-transform:uppercase;letter-spacing:.5px}
+  .mc-badge{font-size:9px;font-weight:800;padding:1px 6px;border-radius:6px;background:#06b6d420;color:#06b6d4;border:1px solid #06b6d440;text-transform:uppercase;letter-spacing:.5px;display:inline-block;margin-bottom:4px}
+
+  .server-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block;margin-top:4px}
+  .server-badge.online{background:#22c55e18;color:#4ade80;border:1px solid #22c55e33}
+  .server-badge.offline{background:#ef444418;color:#f87171;border:1px solid #ef444433}
+
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <div>
+      <h1>Cotizaciones</h1>
+      <div class="sub">Banco Nación Argentina</div>
+      <div id="server-badge" class="server-badge offline">🔴 Servidor local offline</div>
+    </div>
+    <div id="status">
+      <div id="dot"></div>
+      <div id="age">—</div>
+    </div>
+  </div>
+
+  <!-- Moneda tabs -->
+  <div id="moneda-tabs"></div>
+
+  <!-- Content -->
+  <div id="content">
+
+    <!-- Home view -->
+    <div id="home-view" class="view active">
+      <!-- Hero card -->
+      <div id="hero" onclick="openDetail(activeMoneda)">
+        <div id="hero-top">
+          <div>
+            <div id="hero-label">—</div>
+            <div id="hero-price">—</div>
+            <div id="hero-chip"></div>
+          </div>
+          <div id="hero-icon">—</div>
+        </div>
+        <div id="hero-grid">
+          <div class="hg-cell"><div class="hg-label">Compra</div><div class="hg-val" id="hero-compra">—</div></div>
+          <div class="hg-cell"><div class="hg-label">Spread</div><div class="hg-val" id="hero-spread">—</div></div>
+        </div>
+        <div id="hero-spark"></div>
+      </div>
+      <!-- Mini grid (otras monedas) -->
+      <div id="mini-grid"></div>
+    </div>
+
+    <!-- Alerts view -->
+    <div id="alerts-view" class="view">
+      <div class="av-title">Alertas <span id="alerts-badge" class="av-badge" style="display:none"></span></div>
+      <div id="alerts-empty"><div class="eye">👁</div><div style="font-size:15px;font-weight:600">Sin alertas aún</div><div style="font-size:13px;margin-top:4px">Cuando el TC cambie, aparecerán acá.</div></div>
+      <div id="alerts-list"></div>
+    </div>
+
+    <!-- Settings view -->
+    <div id="settings-view" class="view">
+      <div class="sv-title">Configuración</div>
+
+      <!-- Actualización de la fuente -->
+      <div class="sv-section">Actualización BNA</div>
+      <div class="source-update-box" id="source-update-box">
+        <div class="su-row">
+          <span class="su-icon">🕐</span>
+          <div>
+            <div class="su-label">Último precio publicado por BNA</div>
+            <div class="su-val" id="source-update-val">Cargando…</div>
+          </div>
+          <div id="source-freshness" class="su-chip"></div>
+        </div>
+        <div class="su-note">El BNA actualiza sus cotizaciones habitualmente a las <strong>15:30 hs</strong>. La app verifica la fuente automáticamente.</div>
+      </div>
+
+      <div class="sv-section" style="margin-top:20px">Servidor local (Divisas exactas)</div>
+      <div class="source-update-box">
+        <div class="su-row">
+          <span class="su-icon">🖥️</span>
+          <div>
+            <div class="su-label">Estado del servidor</div>
+            <div class="su-val" id="server-status-val">Verificando…</div>
+          </div>
+          <div id="server-status-chip" class="su-chip"></div>
+        </div>
+        <div class="su-note">El servidor local (<strong>bna_server.py</strong>) scrapea bna.com.ar directamente y entrega los decimales exactos. Inicialo en tu PC con <strong>python bna_server.py</strong>.</div>
+      </div>
+
+      <div class="sv-section" style="margin-top:20px">Frecuencia de chequeo</div>
+      <div class="interval-grid" id="interval-grid"></div>
+      <div class="sv-section">Notificaciones</div>
+      <div class="notif-row">
+        <div>
+          <div class="nr-label">Push en el navegador</div>
+          <div class="nr-sub" id="notif-sub">Recibí alertas aunque la app esté en segundo plano</div>
+        </div>
+        <button id="notif-btn" onclick="requestNotif()">Activar</button>
+      </div>
+      <div class="sv-section">Estado</div>
+      <div class="stat-box">
+        <div class="stat-row"><span class="stat-key">Última actualización</span><span class="stat-val" id="stat-last">—</span></div>
+        <div class="stat-row"><span class="stat-key">Intervalo activo</span><span class="stat-val" id="stat-interval">—</span></div>
+        <div class="stat-row"><span class="stat-key">Fuente</span><span class="stat-val">DolarApi.com</span></div>
+        <div class="stat-row"><span class="stat-key">Alertas generadas</span><span class="stat-val" id="stat-alerts">0</span></div>
+      </div>
+      <button id="refresh-btn" onclick="fetchAll()">
+        <span id="refresh-icon">↻</span> Actualizar ahora
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Bottom nav -->
+  <div id="botnav">
+    <button class="bnbtn active" onclick="switchTab('home')" id="bn-home">
+      <span class="bnico">◎</span><span class="bnlbl">Inicio</span>
+    </button>
+    <button class="bnbtn" onclick="switchTab('alerts')" id="bn-alerts">
+      <span class="bnico">🔔</span><span class="bnlbl" id="bn-alerts-lbl">Alertas</span>
+    </button>
+    <button class="bnbtn" onclick="switchTab('settings')" id="bn-settings">
+      <span class="bnico">⚙</span><span class="bnlbl">Config</span>
+    </button>
+  </div>
+
+</div>
+
+<!-- Detail modal -->
+<div id="modal-bg" onclick="closeModal()">
+  <div id="modal" onclick="event.stopPropagation()">
+    <div id="modal-handle"></div>
+    <div id="modal-header">
+      <div id="modal-icon-wrap"></div>
+      <div><div id="modal-name">—</div><div id="modal-sub">Tipo de cambio</div></div>
+    </div>
+    <div id="modal-grid">
+      <div class="mg-cell"><div class="mg-label">Venta</div><div class="mg-val" id="md-venta">—</div></div>
+      <div class="mg-cell"><div class="mg-label">Compra</div><div class="mg-val" id="md-compra">—</div></div>
+      <div class="mg-cell"><div class="mg-label">Spread</div><div class="mg-val" id="md-spread">—</div></div>
+    </div>
+    <div id="modal-diff"><span id="modal-diff-icon"></span><div id="modal-diff-text"></div></div>
+    <div id="modal-hist">
+      <div class="hist-title">Historial de sesión</div>
+      <svg id="modal-spark-svg" viewBox="0 0 300 56" style="width:100%;height:56px;display:block"></svg>
+      <div class="hist-minmax"><span id="md-min">—</span><span id="md-max">—</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MONEDAS = [
+  { key:"oficial",  label:"Oficial BNA",  emoji:"🏦", color:"#3b82f6", url:"https://dolarapi.com/v1/dolares/oficial" },
+  { key:"divisas",  label:"Divisas BNA",  emoji:"🏢", color:"#06b6d4", url:"BCRA", badge:"Empresas" },
+  { key:"blue",     label:"Blue",         emoji:"💵", color:"#a78bfa", url:"https://dolarapi.com/v1/dolares/blue" },
+  { key:"mep",      label:"MEP",          emoji:"📈", color:"#34d399", url:"https://dolarapi.com/v1/dolares/bolsa" },
+  { key:"ccl",      label:"CCL",          emoji:"🔄", color:"#f59e0b", url:"https://dolarapi.com/v1/dolares/contadoconliqui" },
+  { key:"cripto",   label:"Cripto",       emoji:"₿",  color:"#f97316", url:"https://dolarapi.com/v1/dolares/cripto" },
+];
+let rates = {}, prevRates = {}, history = {}, alerts = [];
+let lastFetch = null, lastSourceUpdate = null, pollSec = 60, activeMoneda = "oficial";
+let timerID = null, loading = false;
+
+function peso(v){ if(v==null)return"—"; return new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",minimumFractionDigits:2}).format(v); }
+function age(ts){ if(!ts)return"—"; const s=Math.floor((Date.now()-ts)/1000); if(s<60)return s+"s"; if(s<3600)return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h"; }
+
+// ── Servidor local ─────────────────────────────────────────
+const LOCAL_SERVER="http://localhost:8765";
+let serverOnline=false, localData=null;
+
+async function checkServer(){
+  try{
+    const r=await fetchTimeout(`${LOCAL_SERVER}/ping`,2000);
+    serverOnline=r.ok;
+  }catch{ serverOnline=false; }
+  updateServerBadge();
+  return serverOnline;
+}
+function updateServerBadge(){
+  const b=document.getElementById("server-badge");
+  if(!b)return;
+  b.textContent=serverOnline?"🟢 Servidor local activo":"🔴 Servidor local offline";
+  b.className="server-badge "+(serverOnline?"online":"offline");
+}
+async function fetchFromServer(){
+  const r=await fetchTimeout(`${LOCAL_SERVER}/cotizaciones`,8000);
+  if(!r.ok)throw new Error("server error");
+  localData=await r.json();
+  serverOnline=true;
+  updateServerBadge();
+  return localData;
+}
+
+// fetchTimeout sin AbortSignal — compatible con Workers e iframes
+function fetchTimeout(url,ms=10000){
+  return Promise.race([
+    fetch(url),
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error("timeout")),ms))
+  ]);
+}
+
+async function fetchDivisasBCRA(){
+  const esValido=(c,v)=>!isNaN(c)&&!isNaN(v)&&v>500&&c>500&&v>c&&(v-c)<100;
+
+  // 1) Servidor local — scrape directo del BNA con decimales exactos
+  try{
+    const data=await fetchFromServer();
+    const d=data?.divisas;
+    const c=parseFloat(d?.compra),v=parseFloat(d?.venta);
+    if(d?.ok&&esValido(c,v)){
+      console.log(`[Divisas] Servidor local ✓ compra=${c} venta=${v}`);
+      return {compra:c,venta:v};
+    }
+  }catch(e){ serverOnline=false; updateServerBadge(); console.warn("[Divisas] servidor offline:",e.message); }
+
+  // 2) Ámbito via dolarapi — fuente independiente
+  try{
+    const r=await fetchTimeout("https://dolarapi.com/v1/ambito/dolares/mayorista",8000);
+    if(r.ok){
+      const d=await r.json();
+      const c=parseFloat(d?.compra),v=parseFloat(d?.venta);
+      if(esValido(c,v)){ console.log(`[Divisas] Ámbito ✓ compra=${c} venta=${v}`); return {compra:c,venta:v}; }
+    }
+  }catch(e){ console.warn("[Divisas] Ámbito:",e.message); }
+
+  // 3) dolarapi mayorista — solo si difiere del oficial
+  try{
+    const r=await fetchTimeout("https://dolarapi.com/v1/dolares/mayorista",8000);
+    if(r.ok){
+      const d=await r.json();
+      const c=parseFloat(d?.compra),v=parseFloat(d?.venta);
+      const ofV=rates?.oficial?.venta;
+      if(esValido(c,v)&&(!ofV||Math.abs(v-ofV)>=1)){
+        console.warn(`[Divisas] dolarapi fallback venta=${v}`); return {compra:c,venta:v};
+      } else { console.error("[Divisas] dolarapi igual al oficial — descartado"); }
+    }
+  }catch(e){ console.warn("[Divisas] dolarapi:",e.message); }
+
+  console.error("[Divisas] Todas las fuentes fallaron");
+  return null;
+}
+
+async function fetchJSON(url){
+  // Si servidor online, usar datos ya cacheados de fetchFromServer
+  if(serverOnline&&localData){
+    const keyMap={"oficial":"oficial","blue":"blue","bolsa":"mep","contadoconliqui":"ccl","cripto":"cripto"};
+    const k=Object.keys(keyMap).find(k=>url.includes(k));
+    if(k){ const d=localData[keyMap[k]]; if(d?.ok&&d?.venta)return d; }
+  }
+  try{
+    const r=await fetchTimeout(url,8000);
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(d&&(d.compra||d.venta))return d;
+  }catch{}
+  return null;
+}
+
+// ── Fetch ──────────────────────────────────────────────
+async function fetchAll(){
+  if(loading)return;
+  loading=true;
+  document.getElementById("dot").classList.add("loading");
+  const btn=document.getElementById("refresh-btn");
+  btn.disabled=true;
+  document.getElementById("refresh-icon").classList.add("spin");
+
+  const results={};
+  await Promise.all(MONEDAS.map(async m=>{
+    try{
+      let data=null;
+      if(m.key==="divisas"){
+        data=await fetchDivisasBCRA();
+        // Guard: si divisas devuelve exactamente igual que oficial, algo salió mal — descartar
+        const ofic=results["oficial"]||rates["oficial"];
+        if(data&&ofic&&Math.abs(data.venta-ofic.venta)<1&&Math.abs(data.compra-ofic.compra)<1){
+          console.error(`[Divisas] ⚠ valor idéntico al oficial (venta=${data.venta}) — descartado, se mantiene último valor conocido`);
+          data=rates["divisas"]||null; // mantener último valor válido
+        }
+      } else {
+        const d=await fetchJSON(m.url);
+        if(d){
+          data={compra:d.compra,venta:d.venta};
+          if(d.fechaActualizacion && m.key==="oficial"){
+            lastSourceUpdate=d.fechaActualizacion;
+          }
+        }
+      }
+      results[m.key]=data;
+    }catch{ results[m.key]=null; }
+  }));
+
+  const ts=Date.now();
+  const newAlerts=[];
+  const flashKeys={};
+
+  MONEDAS.forEach(m=>{
+    const cur=results[m.key], prev=prevRates[m.key];
+    if(cur){
+      if(!history[m.key])history[m.key]=[];
+      history[m.key]=[...history[m.key].slice(-79),{t:ts,venta:cur.venta,compra:cur.compra}];
+    }
+    if(cur&&prev){
+      const diff=cur.venta-prev.venta;
+      if(diff!==0){
+        flashKeys[m.key]=diff>0?"up":"dn";
+        const dir=diff>0?"⬆ SUBIÓ":"⬇ BAJÓ";
+        newAlerts.push({id:`${ts}${m.key}`,ts,key:m.key,up:diff>0,label:m.label,diff,
+          text:`${m.label}${m.badge?" ("+m.badge+")":""} ${dir} ${Math.abs(diff).toFixed(2)} → ${peso(cur.venta)}`});
+        sendPush(`${m.emoji} ${m.label}${m.badge?" ("+m.badge+")":""} ${dir}`,`Venta: ${peso(cur.venta)}`);
+      }
+    }
+  });
+
+  prevRates={...rates};
+  rates={...results};
+  if(newAlerts.length){ alerts=[...newAlerts,...alerts].slice(0,50); }
+  lastFetch=ts;
+
+  // Flash then render
+  if(Object.keys(flashKeys).length){
+    renderAll(flashKeys);
+    setTimeout(()=>renderAll({}),1800);
+  } else {
+    renderAll({});
+  }
+
+  loading=false;
+  document.getElementById("dot").classList.remove("loading");
+  btn.disabled=false;
+  document.getElementById("refresh-icon").classList.remove("spin");
+  updateAge();
+}
+
+function sendPush(title,body){
+  if(typeof Notification!=="undefined"&&Notification.permission==="granted"){
+    try{ new Notification(title,{body}); }catch{}
+  }
+}
+
+// ── Render ────────────────────────────────────────────
+function renderAll(flash){
+  renderTabs(flash);
+  renderHero(flash);
+  renderMiniGrid(flash);
+  renderAlerts();
+  renderSettings();
+}
+
+function renderTabs(flash){
+  const container=document.getElementById("moneda-tabs");
+  container.innerHTML="";
+  MONEDAS.forEach(m=>{
+    const r=rates[m.key], p=prevRates[m.key];
+    const diff=r&&p?r.venta-p.venta:0;
+    const btn=document.createElement("button");
+    btn.className="mtab"+(activeMoneda===m.key?" active":"");
+    btn.innerHTML=`<span class="emoji">${m.emoji}</span>${m.label}`
+      +(m.badge?`<span class="badge">${m.badge}</span>`:"")
+      +(diff!==0?`<span class="change ${diff>0?"up":"dn"}">${diff>0?"▲":"▼"}${Math.abs(diff).toFixed(2)}</span>`:"");
+    btn.onclick=()=>{ activeMoneda=m.key; renderAll({}); };
+    container.appendChild(btn);
+  });
+}
+
+function renderHero(flash){
+  const m=MONEDAS.find(x=>x.key===activeMoneda);
+  const r=rates[m.key], p=prevRates[m.key];
+  const diff=r&&p?r.venta-p.venta:0;
+  const fdir=flash[m.key]||"";
+
+  document.getElementById("hero").className=fdir?"flash-"+fdir:"";
+  document.getElementById("hero-label").textContent=m.emoji+" "+m.label;
+  document.getElementById("hero-price").textContent=r?peso(r.venta):"—";
+  document.getElementById("hero-icon").textContent=m.emoji;
+
+  const chip=document.getElementById("hero-chip");
+  chip.className=""; chip.style.display="none";
+  if(diff!==0){
+    chip.className=diff>0?"up":"dn";
+    chip.textContent=(diff>0?"▲ ":"▼ ")+Math.abs(diff).toFixed(2);
+  }
+
+  document.getElementById("hero-compra").textContent=r?peso(r.compra):"—";
+  document.getElementById("hero-spread").textContent=r?peso(r.venta-r.compra):"—";
+
+  const spark=document.getElementById("hero-spark");
+  spark.innerHTML="";
+  const hist=history[m.key]||[];
+  if(hist.length>1){ spark.innerHTML=sparklineSVG(hist,m.color,300,56); }
+}
+
+function renderMiniGrid(flash){
+  const grid=document.getElementById("mini-grid");
+  grid.innerHTML="";
+  MONEDAS.filter(m=>m.key!==activeMoneda).forEach(m=>{
+    const r=rates[m.key], p=prevRates[m.key];
+    const diff=r&&p?r.venta-p.venta:0;
+    const fdir=flash[m.key]||"";
+    const card=document.createElement("div");
+    card.className="mini-card"+(fdir?" flash-"+fdir:"");
+    card.onclick=()=>{ activeMoneda=m.key; renderAll({}); };
+    card.innerHTML=`
+      <div class="mc-top">
+        <span class="mc-emoji">${m.emoji}</span>
+        ${diff!==0?`<span class="mc-change ${diff>0?"up":"dn"}">${diff>0?"▲":"▼"}${Math.abs(diff).toFixed(2)}</span>`:""}
+      </div>
+      ${m.badge?`<div class="mc-badge">${m.badge}</div>`:""}
+      <div class="mc-label">${m.label}</div>
+      <div class="mc-price">${r?peso(r.venta):"—"}</div>
+      <div class="mc-compra">compra ${r?peso(r.compra):"—"}</div>
+      ${history[m.key]&&history[m.key].length>1?sparklineSVG(history[m.key],m.color,200,40):""}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderAlerts(){
+  const badge=document.getElementById("alerts-badge");
+  const lbl=document.getElementById("bn-alerts-lbl");
+  const empty=document.getElementById("alerts-empty");
+  const list=document.getElementById("alerts-list");
+  document.getElementById("stat-alerts").textContent=alerts.length;
+
+  if(alerts.length){
+    badge.style.display="inline"; badge.textContent=alerts.length;
+    lbl.textContent=`Alertas (${alerts.length})`;
+    empty.style.display="none";
+    list.innerHTML=alerts.slice(0,20).map((a,i)=>{
+      const m=MONEDAS.find(x=>x.key===a.key);
+      const time=new Date(a.ts).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+      return `<div class="alert-item ${a.up?"up":"dn"}" style="${i===0?"animation:fadeIn .3s ease":""}">
+        <div class="ai-icon">${a.up?"⬆":"⬇"}</div>
+        <div>
+          <div class="ai-dir">${m?.label} ${a.up?"SUBIÓ":"BAJÓ"}</div>
+          <div class="ai-text">${a.text}</div>
+          <div class="ai-time">${time}</div>
+        </div>
+      </div>`;
+    }).join("");
+  } else {
+    badge.style.display="none";
+    lbl.textContent="Alertas";
+    empty.style.display="block";
+    list.innerHTML="";
+  }
+}
+
+function renderSettings(){
+  // Source update timestamp from BNA via API
+  const suVal=document.getElementById("source-update-val");
+  const suChip=document.getElementById("source-freshness");
+  if(lastSourceUpdate){
+    // fechaActualizacion comes as "2026-06-08T15:30:00" or similar
+    const d=new Date(lastSourceUpdate);
+    const isValid=!isNaN(d.getTime());
+    if(isValid){
+      const dateStr=d.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});
+      const timeStr=d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+      suVal.textContent=`${dateStr} a las ${timeStr} hs`;
+      // freshness: green if updated today after 15:00, yellow if today before, red if yesterday or older
+      const now=new Date();
+      const diffMin=(now-d)/60000;
+      if(diffMin<120){ suChip.className="su-chip fresh"; suChip.textContent="✓ Reciente"; }
+      else if(diffMin<600){ suChip.className="su-chip stale"; suChip.textContent="↻ Pendiente"; }
+      else { suChip.className="su-chip old"; suChip.textContent="⚠ Desactualizado"; }
+    } else {
+      suVal.textContent=lastSourceUpdate;
+      suChip.className="su-chip stale"; suChip.textContent="?";
+    }
+  } else if(lastFetch){
+    suVal.textContent="Sin dato de fuente — última consulta: "+new Date(lastFetch).toLocaleTimeString("es-AR");
+    suChip.className=""; suChip.textContent="";
+  } else {
+    suVal.textContent="Cargando…";
+    suChip.className=""; suChip.textContent="";
+  }
+
+  // Server status
+  const sVal=document.getElementById("server-status-val");
+  const sChip=document.getElementById("server-status-chip");
+  if(sVal&&sChip){
+    if(serverOnline){
+      sVal.textContent="Activo en localhost:8765 — datos exactos del BNA";
+      sChip.className="su-chip fresh"; sChip.textContent="✓ Online";
+    } else {
+      sVal.textContent="No detectado — usando APIs externas (sin centavos)";
+      sChip.className="su-chip old"; sChip.textContent="✗ Offline";
+    }
+  }
+
+  // Intervals
+  const ig=document.getElementById("interval-grid");
+  ig.innerHTML=[{v:15,l:"15s"},{v:30,l:"30s"},{v:60,l:"1 min"},{v:120,l:"2 min"},{v:300,l:"5 min"}]
+    .map(iv=>`<button class="iv-btn${pollSec===iv.v?" active":""}" onclick="setPoll(${iv.v})">${iv.l}</button>`).join("");
+  document.getElementById("stat-last").textContent=lastFetch?new Date(lastFetch).toLocaleTimeString("es-AR"):"—";
+  document.getElementById("stat-interval").textContent=pollSec>=60?pollSec/60+" min":pollSec+" seg";
+  // Notif
+  const notif=typeof Notification!=="undefined"&&Notification.permission==="granted";
+  document.getElementById("notif-sub").textContent=notif?"✅ Activas — te avisamos cuando el TC cambie":"Recibí alertas aunque la app esté en segundo plano";
+  document.getElementById("notif-btn").style.display=notif?"none":"inline-block";
+}
+
+function sparklineSVG(data,color,W,H){
+  const vals=data.map(d=>d.venta);
+  const min=Math.min(...vals),max=Math.max(...vals),range=max-min||1;
+  const pts=vals.map((v,i)=>{
+    const x=(i/(vals.length-1))*W;
+    const y=H-((v-min)/range)*(H-10)-5;
+    return `${x},${y}`;
+  }).join(" ");
+  const lastPt=pts.split(" ").pop();
+  const [lx,ly]=lastPt.split(",");
+  const gid="g"+color.replace("#","");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="0,${H} ${pts} ${W},${H}" fill="url(#${gid})"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lx}" cy="${ly}" r="3.5" fill="${color}"/>
+  </svg>`;
+}
+
+// ── Navigation ────────────────────────────────────────
+function switchTab(name){
+  ["home","alerts","settings"].forEach(t=>{
+    document.getElementById(t+"-view").classList.toggle("active",t===name);
+    document.getElementById("bn-"+t).classList.toggle("active",t===name);
+  });
+  if(name==="alerts")renderAlerts();
+  if(name==="settings")renderSettings();
+}
+
+// ── Detail modal ──────────────────────────────────────
+function openDetail(key){
+  const m=MONEDAS.find(x=>x.key===key);
+  const r=rates[m.key], p=prevRates[m.key];
+  const diff=r&&p?r.venta-p.venta:0;
+  const hist=history[m.key]||[];
+
+  document.getElementById("modal-icon-wrap").style.background=m.color+"22";
+  document.getElementById("modal-icon-wrap").textContent=m.emoji;
+  document.getElementById("modal-name").textContent=m.label;
+  document.getElementById("modal-sub").textContent=m.badge?"Cotización Divisas · Empresas":"Tipo de cambio";  document.getElementById("md-venta").textContent=r?peso(r.venta):"—";
+  document.getElementById("md-compra").textContent=r?peso(r.compra):"—";
+  document.getElementById("md-spread").textContent=r?peso(r.venta-r.compra):"—";
+
+  const diffEl=document.getElementById("modal-diff");
+  diffEl.className=""; diffEl.style.display="none";
+  if(diff!==0){
+    diffEl.className=diff>0?"up":"dn";
+    document.getElementById("modal-diff-icon").textContent=diff>0?"⬆":"⬇";
+    document.getElementById("modal-diff-text").textContent=`${diff>0?"Subió":"Bajó"} ${Math.abs(diff).toFixed(2)} desde la última actualización`;
+  }
+
+  const svgEl=document.getElementById("modal-spark-svg");
+  if(hist.length>1){
+    const vals=hist.map(d=>d.venta);
+    const min=Math.min(...vals),max=Math.max(...vals),range=max-min||1;
+    const W=300,H=56;
+    const pts=vals.map((v,i)=>{ const x=(i/(vals.length-1))*W; const y=H-((v-min)/range)*(H-10)-5; return `${x},${y}`; }).join(" ");
+    const lastPt=pts.split(" ").pop();const[lx,ly]=lastPt.split(",");
+    const gid="gm"+m.color.replace("#","");
+    svgEl.innerHTML=`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${m.color}" stop-opacity="0.25"/><stop offset="100%" stop-color="${m.color}" stop-opacity="0"/></linearGradient></defs>
+      <polygon points="0,${H} ${pts} ${W},${H}" fill="url(#${gid})"/>
+      <polyline points="${pts}" fill="none" stroke="${m.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${lx}" cy="${ly}" r="3.5" fill="${m.color}"/>`;
+    document.getElementById("md-min").textContent="mín "+peso(min);
+    document.getElementById("md-max").textContent="máx "+peso(max);
+  } else {
+    svgEl.innerHTML="";
+  }
+
+  document.getElementById("modal-bg").classList.add("open");
+}
+function closeModal(){ document.getElementById("modal-bg").classList.remove("open"); }
+
+// ── Settings helpers ──────────────────────────────────
+function setPoll(v){
+  pollSec=v;
+  clearInterval(timerID);
+  timerID=setInterval(fetchAll,pollSec*1000);
+  renderSettings();
+}
+
+async function requestNotif(){
+  if(typeof Notification==="undefined")return alert("Tu navegador no soporta notificaciones push."); const p=await Notification.requestPermission();
+  renderSettings();
+}
+
+// ── Age ticker ────────────────────────────────────────
+function updateAge(){ document.getElementById("age").textContent=lastFetch?`hace ${age(lastFetch)}`:"—"; }
+setInterval(updateAge,15000);
+
+// ── Init ──────────────────────────────────────────────
+checkServer().then(()=>{ fetchAll(); });
+timerID=setInterval(fetchAll,pollSec*1000);
+// Re-check servidor cada 30s
+setInterval(checkServer, 30000);
+</script>
+</body>
+</html>
