@@ -303,25 +303,62 @@ def main():
             check_for_update()
     threading.Thread(target=update_loop, daemon=True).start()
 
-    # Abrir navegador después de 1.5s (tiempo para que el server arranque)
-    def open_browser():
-        time.sleep(1.5)
-        webbrowser.open(f"http://localhost:{PORT}/app")
-        print(f"  ✓ App abierta en el navegador")
+# ── Main ───────────────────────────────────────────────────
+def main():
+    print("=" * 50)
+    print("  Cotizaciones BNA")
+    print(f"  Iniciando en http://localhost:{PORT}")
+    print("=" * 50)
 
-    threading.Thread(target=open_browser, daemon=True).start()
-
-    # Iniciar ícono en bandeja en thread separado
-    threading.Thread(target=setup_tray, daemon=True).start()
-
-    # Iniciar servidor (bloqueante)
-    server = HTTPServer(("localhost", PORT), Handler)
-    print("  Minimizá esta ventana. Cerrá desde la bandeja del sistema.")
-    print("  Presioná Ctrl+C para detener.\n")
+    # Pre-cargar cotizaciones
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nCerrado.")
+        get_cotizaciones()
+    except Exception as e:
+        print(f"Advertencia carga inicial: {e}")
+
+    # Verificar actualizaciones en background
+    threading.Thread(target=check_for_update, daemon=True).start()
+    def update_loop():
+        while True:
+            time.sleep(3600)
+            check_for_update()
+    threading.Thread(target=update_loop, daemon=True).start()
+
+    # Iniciar servidor HTTP en thread separado
+    server = HTTPServer(("localhost", PORT), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    print(f"  ✓ Servidor iniciado en puerto {PORT}")
+
+    # Esperar que el servidor esté listo
+    time.sleep(1.0)
+
+    # Intentar abrir como ventana nativa con pywebview
+    try:
+        import webview
+        print("  ✓ Abriendo ventana nativa...")
+        window = webview.create_window(
+            title="Cotizaciones BNA",
+            url=f"http://localhost:{PORT}/app",
+            width=420,
+            height=820,
+            resizable=True,
+            min_size=(380, 600),
+        )
+        # Ícono en bandeja en thread separado
+        threading.Thread(target=setup_tray, daemon=True).start()
+        webview.start()  # bloqueante — cuando se cierra la ventana termina el programa
+
+    except ImportError:
+        # pywebview no disponible — fallback al navegador
+        print("  ℹ pywebview no disponible, abriendo en navegador...")
+        webbrowser.open(f"http://localhost:{PORT}/app")
+        threading.Thread(target=setup_tray, daemon=True).start()
+        # Mantener vivo
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\nCerrado.")
 
 if __name__ == "__main__":
     main()
